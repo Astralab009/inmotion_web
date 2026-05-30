@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+asyncpg
+httpx
+python-dotenv
+beautifulsoup4
+openai
