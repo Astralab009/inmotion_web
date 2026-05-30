@@ -434,7 +434,7 @@ def build_keywords(sector: Dict[str, Any]) -> Set[str]:
 
 
 async def _news_record(conn: asyncpg.Connection, news_record: Any) -> Dict[str, Any]:
-    if isinstance(news_record, int):
+    if isinstance(news_record, (int, str)):
         row = await conn.fetchrow("SELECT id, title, summary, content FROM news WHERE id = $1", news_record)
         if row is None:
             raise HTTPException(status_code=404, detail="News not found")
@@ -561,7 +561,7 @@ async def _table_columns(conn: asyncpg.Connection, table_name: str) -> Set[str]:
 
 async def _insert_news_sector(
     conn: asyncpg.Connection,
-    news_id: int,
+    news_id: str,
     sector_id: int,
     detail: Optional[Dict[str, Any]],
 ) -> None:
@@ -591,7 +591,7 @@ async def _insert_news_sector(
 
 async def _ensure_news_associations_with_detail(
     conn: asyncpg.Connection,
-    news_id: int,
+    news_id: str,
 ) -> Tuple[List[int], Optional[Dict[str, Any]]]:
     existing = await conn.fetch("SELECT sector_id FROM news_sectors WHERE news_id = $1", news_id)
     if existing:
@@ -613,7 +613,7 @@ async def _ensure_news_associations_with_detail(
     return sector_ids, detail
 
 
-async def ensure_news_associations(conn: asyncpg.Connection, news_id: int) -> List[int]:
+async def ensure_news_associations(conn: asyncpg.Connection, news_id: str) -> List[int]:
     sector_ids, _ = await _ensure_news_associations_with_detail(conn, news_id)
     return sector_ids
 
@@ -622,10 +622,10 @@ async def ensure_news_associations(conn: asyncpg.Connection, news_id: int) -> Li
 ensure_news_sectors = ensure_news_associations
 
 
-async def insert_news(conn: asyncpg.Connection, item: NewsItem) -> Optional[int]:
+async def insert_news(conn: asyncpg.Connection, item: NewsItem) -> Optional[str]:
     existing = await conn.fetchrow("SELECT id FROM news WHERE url = $1", item.url)
     if existing:
-        await ensure_news_associations(conn, int(existing["id"]))
+        await ensure_news_associations(conn, existing["id"])
         return None
 
     row = await conn.fetchrow(
@@ -643,7 +643,7 @@ async def insert_news(conn: asyncpg.Connection, item: NewsItem) -> Optional[int]
     )
     if row is None:
         return None
-    news_id = int(row["id"])
+    news_id = row["id"]
     await ensure_news_associations(conn, news_id)
     logger.info("Inserted news id=%s source=%s title=%s", news_id, item.source, item.title)
     return news_id
@@ -755,7 +755,7 @@ async def list_news(
 
 
 @app.get("/api/news/{news_id}")
-async def get_news(news_id: int) -> Dict[str, Any]:
+async def get_news(news_id: str) -> Dict[str, Any]:
     async with require_pool().acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -781,7 +781,7 @@ async def get_news(news_id: int) -> Dict[str, Any]:
 
 
 @app.get("/api/analyze")
-async def analyze_news(news_id: int = Query(..., ge=1)) -> Dict[str, Any]:
+async def analyze_news(news_id: str = Query(..., min_length=1)) -> Dict[str, Any]:
     async with require_pool().acquire() as conn:
         await _news_record(conn, news_id)
         _, llm_analysis = await _ensure_news_associations_with_detail(conn, news_id)
