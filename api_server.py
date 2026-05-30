@@ -720,6 +720,11 @@ async def health() -> Dict[str, Any]:
 async def api_crawl() -> Dict[str, int]:
     return await crawl_news()
 
+@app.get("/api/crawl")
+async def api_crawl_get() -> Dict[str, int]:
+    """GET 版本的新闻抓取端点，方便在浏览器中直接触发"""
+    return await crawl_news()
+
 
 @app.get("/api/news")
 async def list_news(
